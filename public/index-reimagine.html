@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interior Designer - ReimagineHome</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useRef } = React;
+        const { Upload, Home, Palette, Sparkles, Download, Share2, Loader2, Image as ImageIcon, Check, X, Wand2 } = lucide;
+
+        const InteriorDesignApp = () => {
+            const [uploadedImage, setUploadedImage] = useState(null);
+            const [selectedStyle, setSelectedStyle] = useState('');
+            const [selectedMode, setSelectedMode] = useState('virtual_staging');
+            const [additionalRequirements, setAdditionalRequirements] = useState('');
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [results, setResults] = useState(null);
+            const [error, setError] = useState(null);
+            const [apiKey, setApiKey] = useState('');
+            const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+            const [creditsRemaining, setCreditsRemaining] = useState(null);
+            const fileInputRef = useRef(null);
+
+            const designStyles = [
+                { id: 'modern', name: 'Modern', icon: Home, description: 'Clean lines, minimal decor' },
+                { id: 'scandinavian', name: 'Scandinavian', icon: Home, description: 'Light, cozy, functional' },
+                { id: 'industrial', name: 'Industrial', icon: Home, description: 'Raw materials, urban feel' },
+                { id: 'minimalist', name: 'Minimalist', icon: Home, description: 'Simple, uncluttered spaces' },
+                { id: 'traditional', name: 'Traditional', icon: Home, description: 'Classic, timeless elegance' },
+                { id: 'bohemian', name: 'Bohemian', icon: Home, description: 'Eclectic, artistic, colorful' }
+            ];
+
+            const modes = [
+                { id: 'virtual_staging', name: 'Virtual Staging', description: 'Transform empty rooms into furnished spaces' },
+                { id: 'redesign', name: 'Redesign', description: 'Change existing furniture and style' },
+                { id: 'empty_space', name: 'Empty Space', description: 'Remove all furniture from the room' }
+            ];
+
+            const handleImageUpload = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setUploadedImage(e.target.result);
+                        setResults(null);
+                        setError(null);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleDrop = (event) => {
+                event.preventDefault();
+                const file = event.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setUploadedImage(e.target.result);
+                        setResults(null);
+                        setError(null);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleDragOver = (event) => {
+                event.preventDefault();
+            };
+
+            const generateDesign = async () => {
+                if (!uploadedImage || !selectedStyle) {
+                    setError('Please upload an image and select a style');
+                    return;
+                }
+
+                setIsProcessing(true);
+                setError(null);
+
+                try {
+                    // Call the ReimagineHome API endpoint
+                    const response = await fetch('/api/generate-reimagine', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image: uploadedImage,
+                            style: selectedStyle,
+                            mode: selectedMode,
+                            requirements: additionalRequirements,
+                            apiKey: apiKey
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to generate images');
+                    }
+
+                    if (data.images && data.images.length > 0) {
+                        setResults({
+                            images: data.images.map((url, index) => ({
+                                id: index + 1,
+                                url: url,
+                                title: `${selectedStyle} ${modes.find(m => m.id === selectedMode).name}`,
+                                description: 'AI-generated transformation'
+                            }))
+                        });
+                        
+                        if (data.credits_remaining !== undefined) {
+                            setCreditsRemaining(data.credits_remaining);
+                        }
+                    } else {
+                        throw new Error('No images generated');
+                    }
+                } catch (err) {
+                    setError(err.message || 'Failed to generate design. Please try again.');
+                } finally {
+                    setIsProcessing(false);
+                }
+            };
+
+            const downloadImage = (imageUrl, title) => {
+                const link = document.createElement('a');
+                link.href = imageUrl;
+                link.download = `${title.replace(/\s+/g, '_')}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <div className="flex items-center gap-2">
+                                    <Home className="w-8 h-8 text-blue-600" />
+                                    <h1 className="text-2xl font-bold text-gray-900">AI Interior Designer</h1>
+                                    <span className="text-sm text-gray-500">Powered by ReimagineHome</span>
+                                </div>
+                                {creditsRemaining !== null && (
+                                    <div className="text-sm text-gray-600">
+                                        Credits: {creditsRemaining}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {!uploadedImage ? (
+                            // Upload Section
+                            <div className="bg-white rounded-xl shadow-lg p-8">
+                                <div className="text-center mb-8">
+                                    <h2 className="text-3xl font-bold text-gray-800 mb-4">Transform Your Space with AI</h2>
+                                    <p className="text-gray-600 max-w-2xl mx-auto">
+                                        Upload a photo of any room and let our AI transform it with professional staging, 
+                                        redesign existing furniture, or empty the space completely.
+                                    </p>
+                                </div>
+
+                                <div
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer"
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <Upload className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                                    <p className="text-xl font-medium text-gray-700 mb-2">Drop your room photo here</p>
+                                    <p className="text-gray-500">or click to browse</p>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        className="hidden"
+                                    />
+                                </div>
+
+                                <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-blue-50 p-4 rounded-lg">
+                                        <Wand2 className="w-8 h-8 text-blue-600 mb-2" />
+                                        <h3 className="font-semibold text-gray-800">Virtual Staging</h3>
+                                        <p className="text-sm text-gray-600">Transform empty rooms into beautifully furnished spaces</p>
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-lg">
+                                        <Palette className="w-8 h-8 text-green-600 mb-2" />
+                                        <h3 className="font-semibold text-gray-800">Redesign</h3>
+                                        <p className="text-sm text-gray-600">Change existing furniture and decor styles</p>
+                                    </div>
+                                    <div className="bg-purple-50 p-4 rounded-lg">
+                                        <Home className="w-8 h-8 text-purple-600 mb-2" />
+                                        <h3 className="font-semibold text-gray-800">Empty Space</h3>
+                                        <p className="text-sm text-gray-600">Remove all furniture to show the bare room</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {!results ? (
+                                    // Design Options Section
+                                    <div className="bg-white rounded-xl shadow-lg p-8">
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-semibold text-gray-800 mb-4">Your Room</h3>
+                                            <img 
+                                                src={uploadedImage} 
+                                                alt="Uploaded room" 
+                                                className="w-full max-w-md mx-auto rounded-lg shadow-md"
+                                            />
+                                        </div>
+
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-semibold text-gray-800 mb-4">Select Transformation Mode</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {modes.map((mode) => (
+                                                    <button
+                                                        key={mode.id}
+                                                        onClick={() => setSelectedMode(mode.id)}
+                                                        className={`p-4 rounded-lg border-2 transition-all ${
+                                                            selectedMode === mode.id
+                                                                ? 'border-blue-500 bg-blue-50'
+                                                                : 'border-gray-200 hover:border-gray-300'
+                                                        }`}
+                                                    >
+                                                        <h4 className="font-medium text-gray-800">{mode.name}</h4>
+                                                        <p className="text-sm text-gray-600 mt-1">{mode.description}</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-semibold text-gray-800 mb-4">Choose a Design Style</h3>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                {designStyles.map((style) => {
+                                                    const IconComponent = style.icon;
+                                                    return (
+                                                        <button
+                                                            key={style.id}
+                                                            onClick={() => setSelectedStyle(style.id)}
+                                                            className={`p-4 rounded-lg border-2 transition-all ${
+                                                                selectedStyle === style.id
+                                                                    ? 'border-blue-500 bg-blue-50'
+                                                                    : 'border-gray-200 hover:border-gray-300'
+                                                            }`}
+                                                        >
+                                                            <IconComponent className="w-8 h-8 mx-auto mb-2 text-gray-700" />
+                                                            <h4 className="font-medium text-gray-800">{style.name}</h4>
+                                                            <p className="text-xs text-gray-600 mt-1">{style.description}</p>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="mb-6">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Additional Requirements (Optional)
+                                            </label>
+                                            <textarea
+                                                value={additionalRequirements}
+                                                onChange={(e) => setAdditionalRequirements(e.target.value)}
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                rows="3"
+                                                placeholder="e.g., Add plants, warm lighting, cozy atmosphere..."
+                                            />
+                                        </div>
+
+                                        <div className="mb-6">
+                                            <button
+                                                onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                                                className="text-sm text-blue-600 hover:text-blue-700 mb-2"
+                                            >
+                                                {showApiKeyInput ? 'Hide' : 'Add'} API Key
+                                            </button>
+                                            
+                                            {showApiKeyInput && (
+                                                <div className="mt-4">
+                                                    <input
+                                                        type="password"
+                                                        value={apiKey}
+                                                        onChange={(e) => setApiKey(e.target.value)}
+                                                        placeholder="Your ReimagineHome API key"
+                                                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        Get your free trial at <a href="https://www.reimaginehome.ai" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">reimaginehome.ai</a>
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {error && (
+                                            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                                                {error}
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={generateDesign}
+                                            disabled={isProcessing || !selectedStyle}
+                                            className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                                        >
+                                            {isProcessing ? (
+                                                <>
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                    Transforming Your Room...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-5 h-5" />
+                                                    Transform Room
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    // Results Section
+                                    <div className="max-w-6xl mx-auto">
+                                        <div className="text-center mb-8">
+                                            <h2 className="text-3xl font-bold text-gray-800 mb-4">Your Transformed Room</h2>
+                                            <button
+                                                onClick={() => {
+                                                    setResults(null);
+                                                    setSelectedStyle('');
+                                                }}
+                                                className="text-blue-600 hover:text-blue-700 font-medium"
+                                            >
+                                                ← Try Another Style
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                                <div className="p-4 bg-gray-50">
+                                                    <h3 className="font-semibold text-gray-800">Original</h3>
+                                                </div>
+                                                <img 
+                                                    src={uploadedImage} 
+                                                    alt="Original room" 
+                                                    className="w-full"
+                                                />
+                                            </div>
+
+                                            {results.images.map((image) => (
+                                                <div key={image.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
+                                                    <div className="p-4 bg-gray-50 flex justify-between items-center">
+                                                        <h3 className="font-semibold text-gray-800">{image.title}</h3>
+                                                        <button
+                                                            onClick={() => downloadImage(image.url, image.title)}
+                                                            className="text-blue-600 hover:text-blue-700"
+                                                        >
+                                                            <Download className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                    <img 
+                                                        src={image.url} 
+                                                        alt={image.title} 
+                                                        className="w-full"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-8 text-center">
+                                            <button
+                                                onClick={() => {
+                                                    setUploadedImage(null);
+                                                    setResults(null);
+                                                    setSelectedStyle('');
+                                                    setSelectedMode('virtual_staging');
+                                                }}
+                                                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                                            >
+                                                Transform Another Room
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<InteriorDesignApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

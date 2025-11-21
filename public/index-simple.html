@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interior Designer - Transform Your Space</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Backup styles in case Tailwind doesn't load */
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .error { background-color: #fee; padding: 10px; margin: 10px 0; border: 1px solid #fcc; }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="container">
+            <h1>Loading AI Interior Designer...</h1>
+            <p>If this message persists, please check your browser console for errors.</p>
+        </div>
+    </div>
+    
+    <script>
+        console.log('Script starting...');
+        
+        // Simple test without Babel
+        const { useState, useRef } = React;
+        
+        const InteriorDesignApp = () => {
+            const [uploadedImage, setUploadedImage] = useState(null);
+            const [selectedStyle, setSelectedStyle] = useState('');
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [error, setError] = useState(null);
+            
+            const designStyles = [
+                { id: 'modern', name: 'Modern', description: 'Clean lines, minimal decor' },
+                { id: 'scandinavian', name: 'Scandinavian', description: 'Light, cozy, functional' },
+                { id: 'industrial', name: 'Industrial', description: 'Raw materials, urban feel' },
+                { id: 'minimalist', name: 'Minimalist', description: 'Simple, uncluttered spaces' },
+                { id: 'traditional', name: 'Traditional', description: 'Classic, timeless elegance' },
+                { id: 'bohemian', name: 'Bohemian', description: 'Eclectic, artistic, colorful' }
+            ];
+            
+            const handleImageUpload = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setUploadedImage(e.target.result);
+                        setError(null);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+            
+            return React.createElement('div', { className: 'min-h-screen bg-gray-50' },
+                React.createElement('div', { className: 'container mx-auto px-4 py-8' },
+                    React.createElement('header', { className: 'text-center mb-12' },
+                        React.createElement('h1', { className: 'text-5xl font-bold text-gray-800 mb-4' }, 'AI Interior Designer'),
+                        React.createElement('p', { className: 'text-xl text-gray-600' }, 'Transform your space with AI-powered design suggestions')
+                    ),
+                    
+                    React.createElement('div', { className: 'max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 mb-8' },
+                        React.createElement('h2', { className: 'text-2xl font-semibold mb-6' }, 'Upload Your Room Photo'),
+                        
+                        React.createElement('input', {
+                            type: 'file',
+                            accept: 'image/*',
+                            onChange: handleImageUpload,
+                            className: 'mb-4'
+                        }),
+                        
+                        uploadedImage && React.createElement('img', {
+                            src: uploadedImage,
+                            alt: 'Uploaded room',
+                            className: 'max-h-96 mx-auto rounded-lg shadow-lg mb-4'
+                        }),
+                        
+                        uploadedImage && React.createElement('div', { className: 'mt-8' },
+                            React.createElement('h3', { className: 'text-xl font-semibold mb-4' }, 'Choose Your Style'),
+                            React.createElement('div', { className: 'grid grid-cols-2 md:grid-cols-3 gap-4' },
+                                designStyles.map(style => 
+                                    React.createElement('button', {
+                                        key: style.id,
+                                        onClick: () => setSelectedStyle(style.id),
+                                        className: `p-4 rounded-lg border-2 ${selectedStyle === style.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`
+                                    },
+                                        React.createElement('h4', { className: 'font-semibold' }, style.name),
+                                        React.createElement('p', { className: 'text-sm text-gray-600' }, style.description)
+                                    )
+                                )
+                            )
+                        ),
+                        
+                        selectedStyle && React.createElement('button', {
+                            onClick: () => alert('AI generation would happen here with style: ' + selectedStyle),
+                            className: 'mt-8 w-full py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700'
+                        }, 'Generate Design')
+                    )
+                )
+            );
+        };
+        
+        // Render the app
+        try {
+            console.log('Attempting to render React app...');
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(React.createElement(InteriorDesignApp));
+            console.log('React app rendered successfully');
+        } catch (error) {
+            console.error('Error rendering React app:', error);
+            document.getElementById('root').innerHTML = '<div class="error">Error loading app: ' + error.message + '</div>';
+        }
+    </script>
+</body>
+</html>

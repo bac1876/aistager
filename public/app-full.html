@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interior Designer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+        <div class="container mx-auto px-4 py-8">
+            <header class="text-center mb-12">
+                <h1 class="text-5xl font-bold text-gray-800 mb-4">AI Interior Designer</h1>
+                <p class="text-xl text-gray-600">Transform your space with AI-powered design suggestions</p>
+            </header>
+
+            <div id="uploadSection" class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 mb-8">
+                <h2 class="text-2xl font-semibold mb-6">Upload Your Room Photo</h2>
+                
+                <div class="border-3 border-dashed border-gray-300 rounded-xl p-12 text-center">
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                    <label for="fileInput" class="cursor-pointer">
+                        <div id="uploadArea">
+                            <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <p class="text-xl text-gray-600 mb-2">Drag & drop your room photo here</p>
+                            <p class="text-gray-500">or click to browse</p>
+                        </div>
+                        <img id="preview" class="hidden max-h-96 mx-auto rounded-lg shadow-lg">
+                    </label>
+                </div>
+            </div>
+
+            <div id="styleSection" class="hidden max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 mb-8">
+                <h2 class="text-2xl font-semibold mb-6">Choose Your Style</h2>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8" id="styleButtons"></div>
+                
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-3">Additional Requirements (Optional)</h3>
+                    <textarea id="requirements" placeholder="E.g., 'Add more natural light', 'Include plants', 'Use warm colors'..." 
+                        class="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3"></textarea>
+                </div>
+                
+                <button id="generateBtn" class="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2">
+                    <span>Generate Design</span>
+                </button>
+            </div>
+
+            <div id="processingSection" class="hidden max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 mb-8 text-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <h2 class="text-2xl font-semibold mb-2">Generating Your Designs...</h2>
+                <p id="progressText" class="text-gray-600">Analyzing your room structure...</p>
+            </div>
+
+            <div id="results" class="hidden max-w-6xl mx-auto">
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-4">Your AI-Generated Designs</h2>
+                    <p class="text-gray-600">Here are your personalized interior design variations</p>
+                    <button id="startOver" class="mt-4 text-blue-600 hover:text-blue-700 underline">Start Over</button>
+                </div>
+                <div id="resultImages" class="grid md:grid-cols-3 gap-6"></div>
+                <div id="suggestions" class="mt-8 bg-white rounded-xl p-6 shadow-lg hidden">
+                    <h3 class="text-xl font-semibold mb-4">Design Suggestions</h3>
+                    <ul id="suggestionsList" class="list-disc list-inside space-y-2 text-gray-700"></ul>
+                </div>
+            </div>
+
+            <div id="errorSection" class="hidden max-w-4xl mx-auto bg-red-50 border border-red-200 rounded-xl p-6 text-red-700"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';  // Flask backend
+        
+        const designStyles = [
+            { id: 'modern', name: 'Modern', description: 'Clean lines, minimal decor' },
+            { id: 'scandinavian', name: 'Scandinavian', description: 'Light, cozy, functional' },
+            { id: 'industrial', name: 'Industrial', description: 'Raw materials, urban feel' },
+            { id: 'minimalist', name: 'Minimalist', description: 'Simple, uncluttered spaces' },
+            { id: 'traditional', name: 'Traditional', description: 'Classic, timeless elegance' },
+            { id: 'bohemian', name: 'Bohemian', description: 'Eclectic, artistic, colorful' }
+        ];
+
+        let uploadedFile = null;
+        let uploadedFileId = null;
+        let selectedStyle = '';
+
+        // Initialize style buttons
+        const styleButtonsContainer = document.getElementById('styleButtons');
+        designStyles.forEach(style => {
+            const button = document.createElement('button');
+            button.className = 'p-6 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all';
+            button.innerHTML = `
+                <h3 class="font-semibold text-gray-800">${style.name}</h3>
+                <p class="text-sm text-gray-600 mt-1">${style.description}</p>
+            `;
+            button.onclick = () => selectStyle(style.id, button);
+            styleButtonsContainer.appendChild(button);
+        });
+
+        // File upload handling
+        document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                uploadedFile = file;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    document.getElementById('uploadArea').classList.add('hidden');
+                    document.getElementById('preview').src = event.target.result;
+                    document.getElementById('preview').classList.remove('hidden');
+                    document.getElementById('styleSection').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function selectStyle(styleId, button) {
+            selectedStyle = styleId;
+            document.querySelectorAll('#styleButtons button').forEach(btn => {
+                btn.className = 'p-6 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-all';
+            });
+            button.className = 'p-6 rounded-xl border-2 border-blue-500 bg-blue-50 scale-105 transition-all';
+        }
+
+        function showError(message) {
+            const errorSection = document.getElementById('errorSection');
+            errorSection.textContent = message;
+            errorSection.classList.remove('hidden');
+            setTimeout(() => errorSection.classList.add('hidden'), 5000);
+        }
+
+        // Generate design
+        document.getElementById('generateBtn').addEventListener('click', async function() {
+            if (!uploadedFile || !selectedStyle) {
+                showError('Please upload an image and select a style');
+                return;
+            }
+
+            try {
+                // Hide style section, show processing
+                document.getElementById('styleSection').classList.add('hidden');
+                document.getElementById('processingSection').classList.remove('hidden');
+
+                // Step 1: Upload image
+                const formData = new FormData();
+                formData.append('image', uploadedFile);
+
+                const uploadResponse = await fetch(`${API_BASE}/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Failed to upload image');
+                }
+
+                const uploadData = await uploadResponse.json();
+                uploadedFileId = uploadData.file_id;
+
+                // Step 2: Start redesign
+                document.getElementById('progressText').textContent = 'Starting AI transformation...';
+                
+                const redesignResponse = await fetch(`${API_BASE}/api/redesign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_id: uploadedFileId,
+                        style_preference: selectedStyle,
+                        requirements: document.getElementById('requirements').value
+                    })
+                });
+
+                if (!redesignResponse.ok) {
+                    throw new Error('Failed to start redesign');
+                }
+
+                const redesignData = await redesignResponse.json();
+                const redesignId = redesignData.redesign_id;
+
+                // Step 3: Poll for results
+                let attempts = 0;
+                const maxAttempts = 60;
+                
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const statusResponse = await fetch(`${API_BASE}/api/status/${redesignId}`);
+                        const statusData = await statusResponse.json();
+
+                        if (statusData.progress) {
+                            document.getElementById('progressText').textContent = statusData.progress;
+                        }
+
+                        if (statusData.status === 'completed') {
+                            clearInterval(pollInterval);
+                            showResults(statusData);
+                        } else if (statusData.status === 'failed') {
+                            clearInterval(pollInterval);
+                            throw new Error(statusData.error || 'Generation failed');
+                        }
+
+                        attempts++;
+                        if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            throw new Error('Generation timed out');
+                        }
+                    } catch (error) {
+                        clearInterval(pollInterval);
+                        showError('Error checking status: ' + error.message);
+                    }
+                }, 1000);
+
+            } catch (error) {
+                document.getElementById('processingSection').classList.add('hidden');
+                document.getElementById('styleSection').classList.remove('hidden');
+                showError('Error: ' + error.message);
+            }
+        });
+
+        function showResults(data) {
+            document.getElementById('processingSection').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            
+            const resultsContainer = document.getElementById('resultImages');
+            resultsContainer.innerHTML = '';
+            
+            // Show generated images
+            data.images.forEach((imageUrl, index) => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'bg-white rounded-xl shadow-lg overflow-hidden';
+                resultDiv.innerHTML = `
+                    <img src="${API_BASE}${imageUrl}" alt="Variation ${index + 1}" class="w-full h-64 object-cover">
+                    <div class="p-4">
+                        <h3 class="font-semibold text-lg text-gray-800">${selectedStyle} Variation ${index + 1}</h3>
+                        <p class="text-gray-600 text-sm mt-1">AI-generated transformation</p>
+                    </div>
+                `;
+                resultsContainer.appendChild(resultDiv);
+            });
+
+            // Show suggestions if available
+            if (data.suggestions && data.suggestions.length > 0) {
+                document.getElementById('suggestions').classList.remove('hidden');
+                const suggestionsList = document.getElementById('suggestionsList');
+                suggestionsList.innerHTML = '';
+                data.suggestions.forEach(suggestion => {
+                    const li = document.createElement('li');
+                    li.textContent = suggestion;
+                    suggestionsList.appendChild(li);
+                });
+            }
+        }
+
+        // Start over
+        document.getElementById('startOver').addEventListener('click', function() {
+            location.reload();
+        });
+    </script>
+</body>
+</html>

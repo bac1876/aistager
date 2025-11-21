@@ -1,0 +1,33 @@
+{
+  "name": "aistager",
+  "version": "1.0.0",
+  "description": "AI-powered interior design application that transforms room photos",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build required'",
+    "start": "echo 'Static site - no start command needed'",
+    "deploy": "vercel --prod",
+    "login": "vercel login"
+  },
+  "keywords": [
+    "interior-design",
+    "ai",
+    "openai",
+    "dalle",
+    "nextjs",
+    "vercel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/genai": "^1.22.0",
+    "dotenv": "^17.2.1",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "vercel": "^32.5.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
