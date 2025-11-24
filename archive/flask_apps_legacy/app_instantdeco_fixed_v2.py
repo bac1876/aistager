@@ -1,4 +1,59 @@
+from flask import Flask, request, jsonify, render_template_string
+from flask_cors import CORS
+import os
+import requests
+from dotenv import load_dotenv
+import base64
+from datetime import datetime
+import json
+import uuid
 
+load_dotenv('.env.local')
+
+app = Flask(__name__)
+CORS(app)
+
+# API Keys
+INSTANTDECO_API_KEY = os.getenv('INSTANTDECO_API_KEY')
+IMGBB_API_KEY = os.getenv('IMGBB_API_KEY')
+
+# API URLs
+INSTANTDECO_API_URL = 'https://app.instantdeco.ai/api/1.1/wf/request_v2'
+IMGBB_API_URL = 'https://api.imgbb.com/1/upload'
+
+# Staging history storage (in production, use a database)
+staging_history = []
+
+# Auto-detect ngrok URL
+def get_webhook_url():
+    try:
+        response = requests.get('http://localhost:4040/api/tunnels', timeout=2)
+        tunnels = response.json()
+        if tunnels.get('tunnels'):
+            public_url = tunnels['tunnels'][0]['public_url']
+            return f"{public_url}/api/webhook"
+    except:
+        pass
+    return None
+
+# Display webhook status on startup
+webhook_url = get_webhook_url()
+print("\n" + "="*60)
+print("AI ROOM STAGER - FIXED VERSION 2.0")
+print("="*60)
+if webhook_url:
+    print(f"[OK] Ngrok detected: {webhook_url.replace('/api/webhook', '')}")
+    print(f"[OK] Webhook URL: {webhook_url}")
+else:
+    print("[WARNING] Ngrok not detected - webhooks will not work")
+print("="*60 + "\n")
+
+print(f"InstantDecoAI API configured: {'Yes' if INSTANTDECO_API_KEY else 'No'}")
+print(f"ImgBB API configured: {'Yes' if IMGBB_API_KEY else 'No'}")
+
+@app.route('/')
+def index():
+    return render_template_string('''
 <!DOCTYPE html>
 <html>
 <head>
@@ -14,7 +69,7 @@
         <div class="max-w-6xl mx-auto">
             <!-- Webhook Status -->
             <div id="webhookStatus" class="mb-6 p-4 rounded bg-gray-50">
-                <p class="text-sm">Cloud Version - Ready</p>
+                <p class="text-sm">Checking webhook status...</p>
             </div>
             
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -39,11 +94,6 @@
                                 <p class="text-gray-700">Click to upload a photo</p>
                                 <p class="text-xs text-gray-500 mt-1">Interior or Exterior</p>
                             </label>
-                            <!-- URL Input Option -->
-                            <div class="mt-3">
-                                <p class="text-xs text-gray-500 mb-1">Or paste an image URL for faster processing:</p>
-                                <input type="url" id="imageUrlInput" placeholder="https://example.com/room.jpg" class="w-full p-2 border rounded text-sm">
-                            </div>
                         </div>
                         
                         <!-- Current Image Preview -->
@@ -65,13 +115,12 @@
                         <div class="mb-4">
                             <label class="block text-sm font-medium mb-2">Transformation Type</label>
                             <select id="transformationType" class="w-full p-3 border rounded" onchange="handleTransformationChange()">
-                                <option value="furnish">Add Furniture (Virtual Staging) - ~2-3 min</option>
-                                <option value="empty">Remove All Furniture - ~1-2 min</option>
-                                <option value="enhance">Enhance Photo Only - ~30-60 sec</option>
-                                <option value="redesign">Redesign Existing Furniture - ~2-3 min</option>
-                                <option value="day_to_dusk">Convert to Evening/Dusk - ~1 min</option>
+                                <option value="furnish">Add Furniture (Virtual Staging)</option>
+                                <option value="empty">Remove All Furniture</option>
+                                <option value="enhance">Enhance Photo Only</option>
+                                <option value="redesign">Redesign Existing Furniture</option>
+                                <option value="day_to_dusk">Convert to Evening/Dusk</option>
                             </select>
-                            <p id="timeEstimate" class="text-xs text-gray-500 mt-1">Estimated processing time: 2-3 minutes</p>
                         </div>
                         
                         <!-- Room Type (for interior) -->
@@ -104,27 +153,27 @@
                             <div class="grid grid-cols-2 gap-2">
                                 <label class="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="designStyle" value="modern" class="design-radio" checked>
-                                    <span class="text-sm">Modern</span>
+                                    <span class="text-sm">Contemporary</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                                    <input type="radio" name="designStyle" value="scandinavian" class="design-radio">
-                                    <span class="text-sm">Scandinavian</span>
+                                    <input type="radio" name="designStyle" value="traditional" class="design-radio">
+                                    <span class="text-sm">Traditional</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="designStyle" value="midcentury" class="design-radio">
-                                    <span class="text-sm">Mid-Century</span>
+                                    <span class="text-sm">Mid-Century Modern</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="designStyle" value="rustic" class="design-radio">
-                                    <span class="text-sm">Rustic</span>
+                                    <span class="text-sm">Farmhouse</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="designStyle" value="artdeco" class="design-radio">
-                                    <span class="text-sm">Art Deco</span>
+                                    <span class="text-sm">Vintage/Art Deco</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
                                     <input type="radio" name="designStyle" value="french" class="design-radio">
-                                    <span class="text-sm">French</span>
+                                    <span class="text-sm">Colonial/French</span>
                                 </label>
                             </div>
                         </div>
@@ -202,33 +251,18 @@
         let pollingInterval = null;
         let lastRequestData = null;
         
-        // Check API status - try config.json first as fallback
-        fetch('/config.json')
+        // Check webhook status
+        fetch('/api/health')
             .then(res => res.json())
-            .then(config => {
+            .then(data => {
                 const statusEl = document.getElementById('webhookStatus');
-                if (config.api_status === 'ready') {
-                    statusEl.innerHTML = '<p class="text-green-700">✓ Cloud Version - Ready (Static Config)</p>';
+                if (data.webhook_ready) {
+                    statusEl.innerHTML = `<p class="text-green-700">✓ Webhook ready at: ${data.webhook_url}</p>`;
                     statusEl.classList.add('bg-green-50');
-                    
-                    // Try API health check anyway
-                    fetch('/api/health')
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.instantdeco_configured && data.imgbb_configured) {
-                                statusEl.innerHTML = '<p class="text-green-700">✓ Cloud Version - All Systems Ready</p>';
-                            }
-                        })
-                        .catch(() => {
-                            // API blocked by auth, but config says ready, so continue
-                            console.log('API requires authentication, using static config');
-                        });
+                } else {
+                    statusEl.innerHTML = '<p class="text-amber-700">⚠ Webhook not configured - results may be delayed</p>';
+                    statusEl.classList.add('bg-amber-50');
                 }
-            })
-            .catch(err => {
-                const statusEl = document.getElementById('webhookStatus');
-                statusEl.innerHTML = '<p class="text-amber-700">⚠ Configuration loading...</p>';
-                statusEl.classList.add('bg-amber-50');
             });
         
         // Clear form function
@@ -262,10 +296,10 @@
                 
                 // Update transformation options for exterior
                 transformationType.innerHTML = `
-                    <option value="outdoor">Add Outdoor Furniture - ~2-3 min</option>
-                    <option value="enhance">Enhance Photo Only - ~30-60 sec</option>
-                    <option value="blue_sky">Add Blue Sky Effect - ~30-60 sec</option>
-                    <option value="day_to_dusk">Convert to Evening/Dusk - ~1 min</option>
+                    <option value="outdoor">Add Outdoor Furniture</option>
+                    <option value="enhance">Enhance Photo Only</option>
+                    <option value="blue_sky">Add Blue Sky Effect</option>
+                    <option value="day_to_dusk">Convert to Evening/Dusk</option>
                 `;
             } else {
                 roomTypeSection.classList.remove('hidden');
@@ -273,11 +307,11 @@
                 
                 // Restore interior transformation options
                 transformationType.innerHTML = `
-                    <option value="furnish">Add Furniture (Virtual Staging) - ~2-3 min</option>
-                    <option value="empty">Remove All Furniture - ~1-2 min</option>
-                    <option value="enhance">Enhance Photo Only - ~30-60 sec</option>
-                    <option value="redesign">Redesign Existing Furniture - ~2-3 min</option>
-                    <option value="day_to_dusk">Convert to Evening/Dusk - ~1 min</option>
+                    <option value="furnish">Add Furniture (Virtual Staging)</option>
+                    <option value="empty">Remove All Furniture</option>
+                    <option value="enhance">Enhance Photo Only</option>
+                    <option value="redesign">Redesign Existing Furniture</option>
+                    <option value="day_to_dusk">Convert to Evening/Dusk</option>
                 `;
             }
             
@@ -292,20 +326,6 @@
             const flooringSection = document.getElementById('flooringSection');
             const blockDecorSection = document.getElementById('blockDecorSection');
             const advancedOptions = document.getElementById('advancedOptions');
-            const timeEstimate = document.getElementById('timeEstimate');
-            
-            // Update time estimate
-            const timeEstimates = {
-                'furnish': '2-3 minutes',
-                'empty': '1-2 minutes',
-                'enhance': '30-60 seconds',
-                'redesign': '2-3 minutes',
-                'day_to_dusk': '1 minute',
-                'outdoor': '2-3 minutes',
-                'blue_sky': '30-60 seconds'
-            };
-            
-            timeEstimate.textContent = `Estimated processing time: ${timeEstimates[transformType] || '1-2 minutes'}`;
             
             // Show/hide sections based on transformation type
             const needsDesign = ['furnish', 'redesign', 'outdoor'].includes(transformType);
@@ -325,7 +345,6 @@
             
             // Clear any previous errors
             document.getElementById('status').innerHTML = '';
-            document.getElementById('imageUrlInput').value = ''; // Clear URL input
             
             const reader = new FileReader();
             reader.onload = function(event) {
@@ -334,21 +353,6 @@
                 document.getElementById('currentImagePreview').classList.remove('hidden');
             };
             reader.readAsDataURL(file);
-        });
-        
-        // Handle URL input for faster processing
-        document.getElementById('imageUrlInput').addEventListener('input', function(e) {
-            const url = e.target.value.trim();
-            if (url) {
-                // Clear file input
-                document.getElementById('fileInput').value = '';
-                document.getElementById('status').innerHTML = '';
-                
-                // For URLs, we'll use them directly (faster than base64)
-                currentImageData = url;
-                document.getElementById('previewImage').src = url;
-                document.getElementById('currentImagePreview').classList.remove('hidden');
-            }
         });
         
         async function stageCurrentRoom() {
@@ -389,24 +393,18 @@
             btn.disabled = true;
             btn.innerHTML = '<span class="inline-block animate-spin mr-2">⟳</span> Processing...';
             progressBar.classList.remove('hidden');
-            progressFill.style.width = '5%';
-            progressText.textContent = 'Preparing image...';
+            progressFill.style.width = '10%';
+            progressText.textContent = 'Submitting request...';
             
             // Show cancel button in status
             status.innerHTML = `
                 <div class="bg-blue-50 p-3 rounded mt-2 flex justify-between items-center">
-                    <p class="text-blue-700">Uploading to server...</p>
+                    <p class="text-blue-700">Submitting request...</p>
                     <button onclick="cancelRequest()" class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-sm">
                         Cancel
                     </button>
                 </div>
             `;
-            
-            // Update progress after a short delay
-            setTimeout(() => {
-                progressFill.style.width = '15%';
-                progressText.textContent = 'Uploading image...';
-            }, 500);
             
             // Prepare request data
             const requestData = {
@@ -448,11 +446,11 @@
                     
                     stagingJobs.push(job);
                     
-                    progressFill.style.width = '25%';
-                    progressText.textContent = 'Analyzing room structure...';
+                    progressFill.style.width = '30%';
+                    progressText.textContent = 'Request submitted. Processing...';
                     status.innerHTML = `
                         <div class="bg-green-50 p-3 rounded mt-2 flex justify-between items-center">
-                            <p class="text-green-700">✓ Image uploaded. AI is analyzing your room...</p>
+                            <p class="text-green-700">✓ Request submitted. Processing your image...</p>
                             <button onclick="cancelRequest()" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm">
                                 Cancel
                             </button>
@@ -467,18 +465,7 @@
                 }
             } catch (error) {
                 console.error('Error:', error);
-                
-                // Check if it's a rate limit error
-                if (error.message && error.message.includes('wait')) {
-                    status.innerHTML = `<div class="bg-yellow-50 p-3 rounded mt-2">
-                        <p class="text-yellow-700 font-medium">⏳ Rate Limit Reached</p>
-                        <p class="text-yellow-600 text-sm mt-1">${error.message}</p>
-                        <p class="text-yellow-600 text-sm mt-1">The API has a 45-second cooldown between requests to ensure quality results.</p>
-                    </div>`;
-                } else {
-                    status.innerHTML = `<div class="bg-red-50 p-3 rounded mt-2"><p class="text-red-700">Error: ${error.message}</p></div>`;
-                }
-                
+                status.innerHTML = `<div class="bg-red-50 p-3 rounded mt-2"><p class="text-red-700">Error: ${error.message}</p></div>`;
                 btn.disabled = false;
                 btn.textContent = 'Stage This Room';
                 progressBar.classList.add('hidden');
@@ -487,48 +474,28 @@
         
         function startPolling() {
             let pollCount = 0;
-            const maxPolls = 120; // 4 minutes max - give more time
+            const maxPolls = 90; // 3 minutes max
             
             pollingInterval = setInterval(async () => {
                 pollCount++;
                 
-                // More detailed progress stages
-                let progressPercent, progressMessage;
-                const elapsed = pollCount * 2; // seconds
-                
-                if (elapsed < 10) {
-                    progressPercent = 25 + (elapsed * 2);
-                    progressMessage = 'Analyzing room structure...';
-                } else if (elapsed < 30) {
-                    progressPercent = 45 + ((elapsed - 10) * 1.5);
-                    progressMessage = 'Applying AI transformation...';
-                } else if (elapsed < 60) {
-                    progressPercent = 75 + ((elapsed - 30) * 0.5);
-                    progressMessage = 'Generating final image...';
-                } else {
-                    progressPercent = Math.min(90, 90 + ((elapsed - 60) * 0.1));
-                    progressMessage = `Almost done... ${elapsed}s`;
-                }
-                
+                const progressPercent = Math.min(30 + (pollCount * 0.7), 90);
                 document.getElementById('progressFill').style.width = progressPercent + '%';
-                document.getElementById('progressText').textContent = progressMessage;
+                document.getElementById('progressText').textContent = `Processing... ${Math.floor(pollCount * 2)}s`;
                 
                 try {
-                    // Check for results using the new endpoint
-                    const response = await fetch('/api/check-result', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ request_id: currentRequestId })
-                    });
+                    const response = await fetch('/api/recent-stagings');
                     const data = await response.json();
                     
                     let hasUpdates = false;
                     
                     stagingJobs.forEach(job => {
                         if (job.status === 'processing' && job.requestId === currentRequestId) {
-                            if (data.status === 'completed' && data.images && data.images.length > 0) {
+                            const staging = data.stagings.find(s => s.request_id === job.requestId);
+                            
+                            if (staging && staging.webhook_received) {
                                 job.status = 'completed';
-                                job.outputImages = data.images;
+                                job.outputImages = staging.output_images || [];
                                 hasUpdates = true;
                                 
                                 // Complete progress
@@ -567,7 +534,7 @@
                     // Show timeout message with options
                     document.getElementById('status').innerHTML = `
                         <div class="bg-amber-50 p-3 rounded mt-2">
-                            <p class="text-amber-700 font-medium">Request timed out after 4 minutes</p>
+                            <p class="text-amber-700 font-medium">Request timed out after 3 minutes</p>
                             <p class="text-sm text-amber-600 mt-1">The image may still be processing. You can:</p>
                             <div class="flex gap-2 mt-3">
                                 <button onclick="retryLastRequest()" class="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded text-sm">
@@ -783,27 +750,23 @@
             document.getElementById('status').innerHTML = '<div class="bg-blue-50 p-3 rounded mt-2"><p class="text-blue-700">Checking for results...</p></div>';
             
             try {
-                const response = await fetch('/api/check-result', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ request_id: currentRequestId })
-                });
+                const response = await fetch('/api/recent-stagings');
                 const data = await response.json();
                 
-                if (data.status === 'completed' && data.images && data.images.length > 0) {
+                const staging = data.stagings.find(s => s.request_id === currentRequestId);
+                
+                if (staging && staging.webhook_received) {
                     // Found results!
                     stagingJobs.forEach(job => {
                         if (job.requestId === currentRequestId) {
                             job.status = 'completed';
-                            job.outputImages = data.images;
+                            job.outputImages = staging.output_images || [];
                         }
                     });
                     
                     updateResults();
                     document.getElementById('status').innerHTML = '<div class="bg-green-50 p-3 rounded mt-2"><p class="text-green-700">✓ Results found!</p></div>';
                     clearForm();
-                } else if (data.status === 'processing') {
-                    document.getElementById('status').innerHTML = '<div class="bg-amber-50 p-3 rounded mt-2"><p class="text-amber-700">Still processing. Check again in a few moments.</p></div>';
                 } else {
                     document.getElementById('status').innerHTML = '<div class="bg-amber-50 p-3 rounded mt-2"><p class="text-amber-700">No results yet. Try again later.</p></div>';
                 }
@@ -814,4 +777,184 @@
     </script>
 </body>
 </html>
+    ''')
+
+@app.route('/api/health')
+def health():
+    webhook_url = get_webhook_url()
+    return jsonify({
+        'status': 'healthy',
+        'instantdeco_configured': bool(INSTANTDECO_API_KEY),
+        'imgbb_configured': bool(IMGBB_API_KEY),
+        'webhook_ready': bool(webhook_url),
+        'webhook_url': webhook_url
+    })
+
+@app.route('/api/stage', methods=['POST'])
+def stage_room():
+    """Submit staging request to InstantDecoAI"""
+    data = request.json
+    image_data = data.get('image')
+    transformation_type = data.get('transformation_type', 'furnish')
+    space_type = data.get('space_type', 'interior')
+    room_type = data.get('room_type', 'living_room')
+    design_style = data.get('design_style', 'modern')
+    update_flooring = data.get('update_flooring', False)
+    block_decorative = data.get('block_decorative', True)
     
+    if not image_data:
+        return jsonify({'success': False, 'error': 'Missing image data'})
+    
+    if not INSTANTDECO_API_KEY:
+        return jsonify({'success': False, 'error': 'InstantDecoAI API key not configured'})
+    
+    try:
+        # Extract base64 data
+        base64_data = image_data.split(',')[1] if ',' in image_data else image_data
+        
+        # Upload to ImgBB first
+        if not IMGBB_API_KEY:
+            return jsonify({'success': False, 'error': 'ImgBB API key not configured'})
+        
+        imgbb_response = requests.post(
+            IMGBB_API_URL,
+            data={
+                'key': IMGBB_API_KEY,
+                'image': base64_data
+            },
+            timeout=30
+        )
+        
+        if imgbb_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Failed to upload image to ImgBB'})
+        
+        imgbb_data = imgbb_response.json()
+        if not imgbb_data.get('success'):
+            return jsonify({'success': False, 'error': 'ImgBB upload failed'})
+        
+        image_url = imgbb_data['data']['url']
+        
+        # Get webhook URL
+        webhook_url = get_webhook_url()
+        
+        # Prepare InstantDecoAI payload
+        payload = {
+            "transformation_type": transformation_type,
+            "img_url": image_url,
+            "num_images": 1
+        }
+        
+        # Add webhook if available
+        if webhook_url:
+            payload["webhook_url"] = webhook_url
+        
+        # Add parameters based on transformation type
+        if transformation_type in ['furnish', 'redesign', 'outdoor']:
+            payload["room_type"] = room_type
+            payload["design"] = design_style
+            
+            # Build block_element list
+            block_elements = ["wall", "ceiling", "windowpane", "door"]
+            
+            # Add floor to block list if not updating flooring
+            if not update_flooring and transformation_type != 'outdoor':
+                block_elements.append("floor")
+            
+            # Add decorative elements to block list if requested
+            if block_decorative:
+                # Add animal and common decorative items
+                block_elements.extend(["animal", "plant", "vase", "basket"])
+            
+            # For outdoor, add outdoor-specific blocks
+            if transformation_type == 'outdoor':
+                block_elements.extend(["sky", "house", "building", "tree", "car"])
+            
+            payload["block_element"] = ",".join(block_elements)
+        
+        # Call InstantDecoAI
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {INSTANTDECO_API_KEY}'
+        }
+        
+        response = requests.post(INSTANTDECO_API_URL, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('status') == 'success':
+                request_id = result.get('response', {}).get('request_id')
+                
+                # Store in history
+                staging_history.append({
+                    'request_id': request_id,
+                    'timestamp': datetime.now().isoformat(),
+                    'transformation_type': transformation_type,
+                    'space_type': space_type,
+                    'room_type': room_type,
+                    'design_style': design_style,
+                    'update_flooring': update_flooring,
+                    'block_decorative': block_decorative,
+                    'status': 'processing',
+                    'webhook_received': False,
+                    'input_image': image_url
+                })
+                
+                return jsonify({
+                    'success': True,
+                    'request_id': request_id,
+                    'webhook_url': webhook_url,
+                    'message': 'Staging request submitted successfully!'
+                })
+            else:
+                app.logger.error(f"InstantDeco API error response: {result}")
+                return jsonify({'success': False, 'error': f"API error: {result.get('message', 'Unknown error')}"})
+        else:
+            app.logger.error(f"InstantDeco HTTP error: {response.status_code} - {response.text}")
+            return jsonify({'success': False, 'error': f'API request failed: HTTP {response.status_code}'})
+        
+    except requests.exceptions.Timeout:
+        return jsonify({'success': False, 'error': 'Request timed out. Please try again.'})
+    except Exception as e:
+        app.logger.error(f"Stage room error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/webhook', methods=['POST'])
+def webhook():
+    """Handle InstantDecoAI webhook"""
+    try:
+        data = request.json
+        request_id = data.get('request_id')
+        
+        app.logger.info(f"Webhook received for request: {request_id}")
+        
+        # Find the staging request
+        for staging in staging_history:
+            if staging['request_id'] == request_id:
+                staging['webhook_received'] = True
+                staging['webhook_timestamp'] = datetime.now().isoformat()
+                staging['status'] = data.get('status', 'completed')
+                
+                # Extract output images
+                output = data.get('output', '')
+                if output and isinstance(output, str):
+                    # Split by comma and clean up URLs
+                    images = [url.strip() for url in output.split(',') if url.strip()]
+                    staging['output_images'] = images
+                
+                app.logger.info(f"Webhook processed successfully: {len(images)} images")
+                break
+        
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        app.logger.error(f"Webhook error: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/recent-stagings')
+def recent_stagings():
+    """Get recent staging requests"""
+    # Return last 50 stagings, newest first
+    recent = sorted(staging_history, key=lambda x: x['timestamp'], reverse=True)[:50]
+    return jsonify({'stagings': recent})
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

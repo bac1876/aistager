@@ -1,0 +1,1 @@
+$(mcp__playwright__browser_evaluate '() => document.documentElement.outerHTML')
