@@ -736,7 +736,7 @@
             lastRequestData = requestData;
             
             try {
-                // Check for pending task from previous timeout
+                // Check for pending task from page refresh (only resume if still processing)
                 const pendingTask = localStorage.getItem('pendingKieTask');
                 let data = null;
 
@@ -744,7 +744,7 @@
                     const {taskId, timestamp} = JSON.parse(pendingTask);
                     const age = Date.now() - timestamp;
 
-                    // If task is less than 10 minutes old, try to resume it
+                    // If task is less than 10 minutes old, check if it's still processing
                     if (age < 600000) {
                         progressFill.style.width = '30%';
                         progressText.textContent = 'Checking previous task status...';
@@ -752,19 +752,13 @@
                         const resumeResponse = await fetch(`/api/kie-check-status?taskId=${taskId}&_t=${Date.now()}`);
                         const resumeData = await resumeResponse.json();
 
-                        if (resumeData.success && resumeData.status === 'completed' && resumeData.images && resumeData.images.length > 0) {
-                            // Previous task completed! Use its result
-                            data = resumeData;
-                            progressFill.style.width = '40%';
-                            progressText.textContent = 'Found completed result from previous request!';
-                            localStorage.removeItem('pendingKieTask');
-                        } else if (resumeData.status === 'processing') {
-                            // Task still processing, continue polling it
+                        if (resumeData.status === 'processing') {
+                            // Task still processing, resume polling it
                             data = { success: true, status: 'processing', taskId: taskId };
                             progressFill.style.width = '40%';
                             progressText.textContent = 'Resuming previous task...';
                         } else {
-                            // Task failed or not found, clear and create new one
+                            // Task completed or failed, clear localStorage and create new task
                             localStorage.removeItem('pendingKieTask');
                         }
                     } else {
