@@ -251,12 +251,6 @@
                                 <p class="text-gray-300 font-medium">Drop your image here or click to browse</p>
                                 <p class="text-xs text-gray-500 mt-2">Supports JPG, PNG • Max 10MB</p>
                             </label>
-                            <!-- URL Input Option -->
-                            <div class="mt-4">
-                                <p class="text-xs text-gray-500 mb-2">Or paste an image URL:</p>
-                                <input type="url" id="imageUrlInput" placeholder="https://example.com/room.jpg" class="w-full p-3 rounded-lg text-sm">
-                                <p class="text-xs text-blue-400 mt-1 mobile-tip hidden">💡 Tip: Using URLs is much faster on mobile networks!</p>
-                            </div>
                         </div>
                         
                         <!-- Current Image Preview -->
@@ -630,8 +624,7 @@
             
             // Clear any previous errors
             document.getElementById('status').innerHTML = '';
-            document.getElementById('imageUrlInput').value = ''; // Clear URL input
-            
+
             const reader = new FileReader();
             reader.onload = async function(event) {
                 const originalData = event.target.result;
@@ -656,22 +649,7 @@
             };
             reader.readAsDataURL(file);
         });
-        
-        // Handle URL input for faster processing
-        document.getElementById('imageUrlInput').addEventListener('input', function(e) {
-            const url = e.target.value.trim();
-            if (url) {
-                // Clear file input
-                document.getElementById('fileInput').value = '';
-                document.getElementById('status').innerHTML = '';
-                
-                // For URLs, we'll use them directly (faster than base64)
-                currentImageData = url;
-                document.getElementById('previewImage').src = url;
-                document.getElementById('currentImagePreview').classList.remove('hidden');
-            }
-        });
-        
+
         async function stageCurrentRoom() {
             if (!currentImageData) {
                 alert('Please upload a photo first');
@@ -1101,12 +1079,9 @@
             currentImageData = originalImageData;
 
             // Update preview
-            const preview = document.getElementById('preview');
-            preview.src = originalImageData;
-            preview.classList.remove('hidden');
-
-            // Show upload section elements
-            document.getElementById('uploadSection').classList.remove('hidden');
+            const previewImage = document.getElementById('previewImage');
+            previewImage.src = originalImageData;
+            document.getElementById('currentImagePreview').classList.remove('hidden');
 
             // Pre-fill space type
             const spaceTypeSelect = document.getElementById('spaceType');
@@ -1138,9 +1113,9 @@
                 });
             }, 200);
 
-            // Scroll to upload section
+            // Scroll to form at top
             setTimeout(() => {
-                document.getElementById('uploadSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }, 250);
 
             // Show message
